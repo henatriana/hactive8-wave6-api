@@ -26,6 +26,20 @@ app.use(express.json()); // untuk membolehkan kita menggunakan 'Content-type: ap
 // .get(), .post(), .put(), .patch(), .delete () --> Sering dipakai
 // .option() --> lebih jarang diapakai, karena lebih ke flashlight (untuk CORS umumnya)
 
+function extractText(resp) {
+  try {
+    const text = resp?.response?.candidate?.[0]?.content?.parts?.[0]?.text ?? 
+                resp?.candidate?.[0]?.content?.parts?.[0]?.text ??
+                resp?.response?.candidates?.[0]?.content?.text;
+    
+    return text ?? JSON.stringify(resp, null, 2);
+  } catch (err) {
+    console.error("Error extracting text:", err);
+    return JSON.stringify(resp, null, 2);
+  }
+};
+
+// 1. Generate Text
 app.post('/generate-text', async (req, res) => {
   //handle bagaiamana request diterima oleh user
   // const { body } = req; // object distructuring
@@ -61,6 +75,61 @@ app.post('/generate-text', async (req, res) => {
     reply: response.text
   });
   
+});
+
+
+// 2. Generate Image
+app.post('/generate-from-image', upload.single('image'), async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const imageBase64 = req.file.buffer.toString('base64');
+    const resp = await ai.models.generateContent({
+      contents: [
+        { text: prompt  },
+        { inlineData: { mimeType: req.file.mimetype, data: imageBase64 } }
+      ],
+      model: geminiModels.image
+    });
+    res.json({ result: extractText(resp)});
+  } catch (err) {
+    res.status(500).json({ error: err.message});
+  }
+});
+
+// 3. Generate Document
+app.post('/generate-from-document', upload.single('document'), async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const documentBase64 = req.file.buffer.toString('base64');
+    const resp = await ai.models.generateContent({
+      contents: [
+        { text: prompt || "Ringkasan dokumen berikut : " },
+        { inlineData: { mimeType: req.file.mimetype, data: documentBase64 } }
+      ],
+      model: geminiModels.document
+    });
+    res.json({ result: extractText(resp)});
+  } catch (err) {
+    res.status(500).json({ error: err.message});
+  }
+});
+
+// 4. Generate Audio
+app.post('/generate-from-audio', upload.single('audio'), async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    const audioBase64 = req.file.buffer.toString('base64');
+    const resp = await ai.models.generateContent({
+      contents: [
+        { text: prompt || "Trankrip audio berikut : " },
+        { inlineData: { mimeType: req.file.mimetype, data: audioBase64 } }
+      ],
+      model: geminiModels.audio
+    });
+    res.json({ result: extractText(resp)});
+  } catch (err) {
+    res.status(500).json({ error: err.message});
+  }
 });
 
 // async function main() {
